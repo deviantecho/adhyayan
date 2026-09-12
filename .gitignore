@@ -9,3 +9,8 @@ venv/
 data/text/
 data/clean_text/
 data/embeddings/
+
+# Claude Code / Agent Skills
+.agents/
+.claude/
+skills-lock.json

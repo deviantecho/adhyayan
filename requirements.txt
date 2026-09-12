@@ -7,3 +7,5 @@ python-dotenv
 torch
 torchvision
 pymupdf
+fastapi
+uvicorn
