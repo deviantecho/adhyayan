@@ -1,4 +1,5 @@
 .env
+.env.local
 
 __pycache__/
 *.pyc
@@ -10,7 +11,26 @@ data/text/
 data/clean_text/
 data/embeddings/
 
+# Next.js
+frontend/.next/
+frontend/out/
+frontend/node_modules/
+
+# Node tooling
+node_modules/
+
+# Local environment
+frontend/.env.local
+
 # Claude Code / Agent Skills
 .agents/
 .claude/
 skills-lock.json
+
+# Local visual test artifacts
+screenshot-*.png
+test-chat-answer.png
+test-chat-error.png
+# Claude local tooling anywhere
+**/.claude/
+**/.agents/
