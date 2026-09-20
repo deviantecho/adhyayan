@@ -45,23 +45,32 @@ class APIClient {
     });
 
     if (!response.ok) {
-      // Parse error response
-      let errorMessage = 'Unknown error';
+      // Parse error response but never expose provider details
+      let errorType = 'UNKNOWN';
       try {
         const errorData = await response.json();
-        errorMessage = errorData.detail || errorData.message || JSON.stringify(errorData);
+        const errorMessage = (errorData.detail || errorData.message || '').toLowerCase();
+
+        // Detect error type without exposing it
+        if (response.status === 429 || errorMessage.includes('resource_exhausted') || errorMessage.includes('quota') || errorMessage.includes('rate limit')) {
+          errorType = 'QUOTA';
+        } else if (response.status === 503) {
+          errorType = 'UNAVAILABLE';
+        }
       } catch {
-        errorMessage = await response.text();
+        // Failed to parse error, use status code
+        if (response.status === 429) errorType = 'QUOTA';
+        else if (response.status === 503) errorType = 'UNAVAILABLE';
       }
 
-      // Check for specific error patterns
-      if (response.status === 429 || errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('quota')) {
-        throw new Error('QUOTA_EXCEEDED: Service quota exceeded');
-      } else if (response.status === 503) {
-        throw new Error('SERVICE_UNAVAILABLE: Service temporarily unavailable');
+      // Throw sanitized error messages only
+      if (errorType === 'QUOTA') {
+        throw new Error('QUOTA_EXCEEDED');
+      } else if (errorType === 'UNAVAILABLE') {
+        throw new Error('SERVICE_UNAVAILABLE');
       }
 
-      throw new Error(`Chat request failed: ${errorMessage}`);
+      throw new Error('REQUEST_FAILED');
     }
 
     return response.json();

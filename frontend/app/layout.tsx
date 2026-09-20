@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "NCERT Study Companion",
-  description: "The NCERT curriculum, reimagined for the AI era.",
+  title: "Adhyayan — Class 10 NCERT Study Companion",
+  description: "Explore Class 10 NCERT material through chapter-focused conversations.",
 };
 
 export default function RootLayout({

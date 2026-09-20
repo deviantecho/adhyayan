@@ -48,8 +48,8 @@ class ChatResponse(BaseModel):
 # --------------------------------------------------
 
 app = FastAPI(
-    title="NCERT RAG API",
-    description="RAG-powered NCERT learning companion API",
+    title="Adhyayan API",
+    description="Class 10 NCERT Study Companion API",
     version="1.0.0"
 )
 
@@ -182,7 +182,7 @@ async def chat(request: ChatRequest):
 @app.get("/")
 async def root():
     return {
-        "message": "NCERT RAG API",
+        "message": "Adhyayan API",
         "version": "1.0.0",
         "endpoints": {
             "health": "/api/health",
