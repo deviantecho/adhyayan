@@ -18,11 +18,21 @@ The system retrieves relevant textbook sections through semantic search, then ge
 
 ## Screenshots
 
-![Adhyayan Homepage](images/homepage.png)
+### Adhyayan Home
 
-![Chat Interface with Structured Answers](images/chat-example.png)
+![Adhyayan Home](images/adhyayan-home.png)
 
-![Source Attribution and Retrieval](images/retrieval-details.png)
+### Mathematics
+
+![Adhyayan Mathematics](images/adhyayan-mathematics.png)
+
+### Mobile
+
+<img src="images/adhyayan-mobile.png" width="390" alt="Adhyayan Mobile">
+
+### Mobile Navigation
+
+<img src="images/adhyayan-mobile-menu.png" width="390" alt="Adhyayan Mobile Menu">
 
 ---
 
@@ -226,9 +236,10 @@ Adhyayan/
 │   └── tsconfig.json
 │
 ├── images/
-│   ├── homepage.png
-│   ├── chat-example.png
-│   └── retrieval-details.png
+│   ├── adhyayan-home.png
+│   ├── adhyayan-mathematics.png
+│   ├── adhyayan-mobile.png
+│   └── adhyayan-mobile-menu.png
 │
 ├── scripts/
 │   ├── extract_text.py         # PDF → text
