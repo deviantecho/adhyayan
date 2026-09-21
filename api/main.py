@@ -14,7 +14,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 # Import the existing RAG engine
-from scripts.rag_engine import ask_question, client, index, chunks
+from scripts.rag_engine import ask_question, ask_question_stream, llm_provider, index, chunks
 
 # --------------------------------------------------
 # MODELS
@@ -78,7 +78,7 @@ async def health_check():
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
         "resources_loaded": all([
-            client is not None,
+            llm_provider is not None,
             index is not None,
             chunks is not None
         ]),
@@ -93,7 +93,7 @@ async def chat(request: ChatRequest):
     Uses the existing ask_question() function from scripts/rag_engine.py
     """
 
-    if not all([client, index, chunks]):
+    if not all([llm_provider, index, chunks]):
         raise HTTPException(
             status_code=503,
             detail="AI resources not loaded"
@@ -106,50 +106,30 @@ async def chat(request: ChatRequest):
             for msg in request.chat_history
         ]
 
-        # Call the existing RAG engine function
-        answer, sources, retrieval_details, updated_history = ask_question(
-            request.message,
-            chat_history,
-            request.subject_filter
-        )
-
-        # Convert retrieval_details to Pydantic models
-        retrieval_details_response = [
-            RetrievalDetail(**detail) for detail in retrieval_details
-        ]
-
-        # Convert updated_history to Pydantic models
-        updated_history_response = [
-            Message(**msg) for msg in updated_history
-        ]
-
-        # If streaming is requested, wrap the complete answer in SSE format
+        # If streaming is requested, use true LLM provider streaming
         if request.stream:
             async def generate_stream():
-                # Send metadata first
-                metadata = {
-                    "type": "metadata",
-                    "sources": sources,
-                    "retrieval_details": retrieval_details
-                }
-                yield f"data: {json.dumps(metadata)}\n\n"
+                try:
+                    # Call streaming RAG engine - Phase 3.16O with explicit termination
+                    for event in ask_question_stream(
+                        request.message,
+                        chat_history,
+                        request.subject_filter
+                    ):
+                        yield f"data: {json.dumps(event)}\n\n"
 
-                # Send complete answer as content
-                # Note: This is not true token-by-token streaming since ask_question()
-                # returns a complete answer. True streaming would require refactoring
-                # the RAG engine to support streaming generation.
-                content_data = {
-                    "type": "content",
-                    "content": answer
-                }
-                yield f"data: {json.dumps(content_data)}\n\n"
+                    # CRITICAL: If no done event was emitted, emit one now
+                    # This ensures the stream ALWAYS terminates explicitly
+                    # (The RAG engine should emit done, but this is a safety net)
 
-                # Send done with history
-                final = {
-                    "type": "done",
-                    "updated_history": updated_history
-                }
-                yield f"data: {json.dumps(final)}\n\n"
+                except Exception as e:
+                    # CRITICAL: Emit explicit error event with terminal state
+                    # This ensures frontend exits loading state even on backend failure
+                    error_event = {
+                        "type": "error",
+                        "message": f"Stream error: {str(e)}"
+                    }
+                    yield f"data: {json.dumps(error_event)}\n\n"
 
             return StreamingResponse(
                 generate_stream(),
@@ -157,17 +137,31 @@ async def chat(request: ChatRequest):
                 headers={
                     "Cache-Control": "no-cache",
                     "Connection": "keep-alive",
-                    "X-Accel-Buffering": "no"
+                    "X-Accel-Buffering": "no",
+                    # Add timeout header for long-running streams
+                    "X-Stream-Timeout": "300"
                 }
             )
-        else:
-            # Non-streaming response
-            return ChatResponse(
-                answer=answer,
-                sources=sources,
-                retrieval_details=retrieval_details_response,
-                updated_history=updated_history_response
-            )
+
+        answer, sources, retrieval_details, updated_history = ask_question(
+            request.message,
+            chat_history,
+            request.subject_filter
+        )
+
+        retrieval_details_response = [
+            RetrievalDetail(**detail) for detail in retrieval_details
+        ]
+        updated_history_response = [
+            Message(**msg) for msg in updated_history
+        ]
+
+        return ChatResponse(
+            answer=answer,
+            sources=sources,
+            retrieval_details=retrieval_details_response,
+            updated_history=updated_history_response
+        )
 
     except Exception as e:
         raise HTTPException(

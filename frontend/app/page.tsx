@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { chat, type Message as APIMessage, type ChatResponse } from '@/lib/api';
+import { chat, chatStream, type Message as APIMessage, type ChatResponse, type SSEMessage } from '@/lib/api';
 import { SUBJECTS, getSubject, getChapter, type Chapter } from '@/lib/curriculum-data';
 import { ChapterHero } from '@/components/ChapterHero';
 import { SearchDialog } from '@/components/SearchDialog';
 import { HelpDialog } from '@/components/HelpDialog';
 import { AboutDialog } from '@/components/AboutDialog';
-import { StructuredAnswer } from '@/components/StructuredAnswer';
+import { StructuredAnswer, StructuredAnswerLegacy } from '@/components/StructuredAnswer';
 import { UserAvatar } from '@/components/UserAvatar';
 import { getHeroAssets } from '@/lib/hero-assets';
 
@@ -20,6 +20,7 @@ interface Message extends APIMessage {
     section: string;
     distance: number;
   }>;
+  isStreaming?: boolean;
 }
 
 type ViewMode = 'overview' | 'chapter';
@@ -81,22 +82,102 @@ export default function Home() {
     setInput('');
     setIsLoading(true);
 
+    // Create placeholder for streaming assistant message
+    const streamingMessageId = Date.now();
+    const streamingMessage: Message = {
+      role: 'assistant',
+      content: '',
+      isStreaming: true,
+    };
+    setMessages(prev => [...prev, streamingMessage]);
+
+    let accumulatedContent = '';
+    let streamingSources: string[] | undefined;
+    let streamingRetrievalDetails: Message['retrievalDetails'] | undefined;
+
     try {
-      const response: ChatResponse = await chat({
-        message: userMessage.content,
-        chat_history: messages.map(m => ({ role: m.role, content: m.content })),
-        subject_filter: currentSubject === 'science' ? 'Science' : 'Mathematics',
-        stream: false,
-      });
+      await chatStream(
+        {
+          message: userMessage.content,
+          chat_history: messages.map(m => ({ role: m.role, content: m.content })),
+          subject_filter: currentSubject === 'science' ? 'Science' : 'Mathematics',
+        },
+        (event: SSEMessage) => {
+          if (event.type === 'metadata') {
+            // Store metadata
+            streamingSources = event.sources;
+            streamingRetrievalDetails = event.retrieval_details;
+          } else if (event.type === 'content') {
+            // Accumulate content and update UI incrementally
+            accumulatedContent += event.content;
+            setMessages(prev =>
+              prev.map((msg, idx) =>
+                idx === prev.length - 1 && msg.isStreaming
+                  ? { ...msg, content: accumulatedContent }
+                  : msg
+              )
+            );
+          } else if (event.type === 'done') {
+            // Phase 3.16O: Finalize message with NORMALIZED ANSWER
+            // Frontend uses validated structure from backend, not raw text
 
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content: response.answer,
-        sources: response.sources,
-        retrievalDetails: response.retrieval_details,
-      };
+            const finalMessage: Message = {
+              role: 'assistant',
+              content: accumulatedContent,
+              sources: event.answer?.sources || streamingSources,
+              retrievalDetails: event.answer?.retrievalDetails || streamingRetrievalDetails,
+              isStreaming: false,
+              answer: event.answer, // Store normalized Answer object
+            };
 
-      setMessages(prev => [...prev, assistantMessage]);
+            setMessages(prev =>
+              prev.map((msg, idx) =>
+                idx === prev.length - 1 && msg.isStreaming ? finalMessage : msg
+              )
+            );
+          } else if (event.type === 'error') {
+            // Handle streaming error
+            const errorMessage: Message = {
+              role: 'assistant',
+              content: event.error || 'An error occurred. Please try again.',
+            };
+            setMessages(prev =>
+              prev.map((msg, idx) =>
+                idx === prev.length - 1 && msg.isStreaming ? errorMessage : msg
+              )
+            );
+          }
+        },
+        (error: Error) => {
+          console.error('Chat stream error:', error);
+
+          let userMessage = 'The tutor is temporarily unavailable. Please try again in a few moments.';
+
+          if (error instanceof Error) {
+            const errorText = error.message.toLowerCase();
+            if (errorText.includes('quota') || errorText.includes('429') || errorText.includes('resource_exhausted')) {
+              userMessage = 'The tutor has reached its current usage limit. Please try again later.';
+            } else if (errorText.includes('network') || errorText.includes('fetch')) {
+              userMessage = 'Unable to connect to the tutor. Please check your connection and try again.';
+            }
+          }
+
+          const errorMessage: Message = {
+            role: 'assistant',
+            content: userMessage,
+          };
+
+          setMessages(prev =>
+            prev.map((msg, idx) =>
+              idx === prev.length - 1 && msg.isStreaming ? errorMessage : msg
+            )
+          );
+        },
+        () => {
+          // Stream complete
+          setIsLoading(false);
+        }
+      );
     } catch (error) {
       console.error('Chat error:', error);
 
@@ -115,8 +196,11 @@ export default function Home() {
         role: 'assistant',
         content: userMessage,
       };
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
+      setMessages(prev =>
+        prev.map((msg, idx) =>
+          idx === prev.length - 1 && msg.isStreaming ? errorMessage : msg
+        )
+      );
       setIsLoading(false);
     }
   };
@@ -549,26 +633,22 @@ export default function Home() {
                               </svg>
                             </div>
                             <div className="flex-1 min-w-0 answer-content">
-                              <StructuredAnswer
-                                content={message.content}
-                                sources={message.sources}
-                                retrievalDetails={message.retrievalDetails}
-                              />
+                              {message.answer ? (
+                                /* Phase 3.16O: Use normalized Answer object */
+                                <StructuredAnswer answer={message.answer} />
+                              ) : (
+                                /* Fallback for old chat history without normalized answer */
+                                <StructuredAnswerLegacy
+                                  content={message.content}
+                                  sources={message.sources}
+                                  retrievalDetails={message.retrievalDetails}
+                                />
+                              )}
                             </div>
                           </div>
                         )}
                       </div>
                     ))}
-                    {isLoading && (
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[var(--color-accent)] flex items-center justify-center flex-shrink-0">
-                          <svg className="w-4 h-4 text-white animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                          </svg>
-                        </div>
-                        <div className="text-[14px] text-[var(--color-text-secondary)]">Searching chapters...</div>
-                      </div>
-                    )}
                     <div ref={messagesEndRef} />
                   </div>
                 )}

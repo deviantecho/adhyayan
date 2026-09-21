@@ -7,10 +7,17 @@ export const API_CONFIG = {
   },
 } as const;
 
+// Import Answer type from normalized answer schema
+import type { Answer } from '../types/answer';
+
 // API Types
 export interface Message {
   role: 'user' | 'assistant';
   content: string;
+  sources?: string[];
+  retrievalDetails?: Answer['retrievalDetails'];
+  isStreaming?: boolean;
+  answer?: Answer; // Phase 3.16O: Normalized Answer object from done event
 }
 
 export interface ChatRequest {
@@ -60,6 +67,7 @@ export interface SSEContent {
 export interface SSEDone {
   type: 'done';
   updated_history: Message[];
+  answer?: Answer; // Phase 3.16O: Normalized Answer object
 }
 
 export interface SSEError {
