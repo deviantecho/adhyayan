@@ -42,7 +42,8 @@ def get_provider() -> LLMProvider:
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise RuntimeError("GEMINI_API_KEY environment variable not set")
-        return GeminiProvider(api_key=api_key)
+        model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        return GeminiProvider(api_key=api_key, model=model)
 
     elif provider_name == "omniroute":
         base_url = os.getenv("OMNIROUTE_BASE_URL", "http://127.0.0.1:20128/v1")

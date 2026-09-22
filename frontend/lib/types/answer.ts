@@ -89,7 +89,7 @@ export type SSEMessage =
   | { type: 'metadata'; sources: string[]; retrieval_details: Answer['retrievalDetails'] }
   | { type: 'content'; content: string }
   | { type: 'done'; updated_history: Message[]; answer: Answer }
-  | { type: 'error'; message: string };
+  | { type: 'error'; error: string };
 
 /**
  * Chat message structure

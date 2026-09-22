@@ -438,7 +438,7 @@ Only return the rewritten question.
     if distances[0][0] < 0.35:
         yield {
             "type": "error",
-            "message": "I could not find this information in the NCERT data."
+            "error": "I could not find this information in the NCERT data."
         }
         return
 
@@ -459,7 +459,7 @@ Only return the rewritten question.
     if len(filtered_chunks) == 0:
         yield {
             "type": "error",
-            "message": f"No relevant chunks found in {subject_filter}."
+            "error": f"No relevant chunks found in {subject_filter}."
         }
         return
 
@@ -615,7 +615,7 @@ For simple non-educational queries (greetings, simple facts), structured tags ar
         # Emit explicit error event - FIX for stream freeze
         yield {
             "type": "error",
-            "message": f"Generation failed: {str(e)}"
+            "error": f"Generation failed: {str(e)}"
         }
         return
 
