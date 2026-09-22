@@ -1,12 +1,13 @@
-streamlit
+# Use CPU-only PyTorch wheels to avoid bundling CUDA libraries (nvidia-*),
+# which otherwise exceed Render's free-tier 512MB memory limit at startup.
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 google-genai
 openai
 sentence-transformers
 faiss-cpu
 numpy
 python-dotenv
-torch
-torchvision
-pymupdf
+torch==2.14.0+cpu
 fastapi
 uvicorn
