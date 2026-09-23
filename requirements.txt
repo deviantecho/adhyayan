@@ -1,13 +1,18 @@
-# Use CPU-only PyTorch wheels to avoid bundling CUDA libraries (nvidia-*),
-# which otherwise exceed Render's free-tier 512MB memory limit at startup.
---extra-index-url https://download.pytorch.org/whl/cpu
+# Runtime embedding is served via fastembed (ONNX Runtime), which reproduces
+# the sentence-transformers/all-MiniLM-L6-v2 model (384-dim, mean pooling,
+# L2-normalized) WITHOUT bundling PyTorch. This keeps startup memory within
+# Render's free-tier 512MB limit. The existing FAISS index is reused as-is.
+#
+# NOTE: sentence-transformers/torch are still used by the OFFLINE build
+# scripts (scripts/generate_embeddings.py, etc.) that created the index.
+# Those are not part of the deployed runtime and are intentionally NOT
+# listed here to keep the runtime image light.
 
 google-genai
 openai
-sentence-transformers
 faiss-cpu
 numpy
 python-dotenv
-torch==2.14.0+cpu
+fastembed
 fastapi
 uvicorn

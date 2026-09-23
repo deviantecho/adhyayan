@@ -13,9 +13,57 @@ import numpy as np
 import time
 
 from dotenv import load_dotenv
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 from .llm import get_provider
 from .answer_schema import normalize_response, Answer
+
+
+# --------------------------------------------------
+# Lightweight query embedder (ONNX via fastembed)
+# --------------------------------------------------
+# Replaces the sentence-transformers + PyTorch runtime stack, which exceeded
+# Render's 512MB free-tier memory limit at startup. fastembed serves the same
+# `sentence-transformers/all-MiniLM-L6-v2` model via ONNX Runtime (no torch):
+#   - 384 dimensions
+#   - mean pooling
+#   - L2-normalized output by default
+# These match how the existing 785 FAISS document vectors were generated
+# (all-MiniLM-L6-v2 with normalize_embeddings=True), so the existing
+# IndexFlatIP (cosine) index is reused WITHOUT rebuilding.
+#
+# This wrapper preserves the exact call signature previously used against the
+# sentence-transformers model:
+#     embedding_model.encode(text, normalize_embeddings=True)
+# so downstream retrieval logic is unchanged.
+
+_FASTEMBED_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+
+
+class _QueryEmbedder:
+    """Adapter exposing a sentence-transformers-like .encode() over fastembed.
+
+    fastembed's TextEmbedding for all-MiniLM-L6-v2 already applies mean pooling
+    and L2 normalization, producing 384-dim unit vectors. The `normalize_embeddings`
+    argument is accepted for signature compatibility; fastembed normalizes by
+    default, so a defensive re-normalization is applied only when requested to
+    guarantee unit-length vectors for the IndexFlatIP (cosine) index.
+    """
+
+    def __init__(self, model_name: str = _FASTEMBED_MODEL_NAME):
+        self._model = TextEmbedding(model_name=model_name)
+
+    def encode(self, text, normalize_embeddings: bool = True):
+        # fastembed.embed() takes an iterable of documents and returns a
+        # generator of numpy arrays (float32, shape (384,)).
+        vector = next(iter(self._model.embed([text])))
+        vector = np.asarray(vector, dtype="float32")
+
+        if normalize_embeddings:
+            norm = np.linalg.norm(vector)
+            if norm > 0:
+                vector = vector / norm
+
+        return vector
 
 
 warnings.filterwarnings("ignore")
@@ -38,7 +86,7 @@ def load_resources():
 
     # Embedding model - loaded once at startup
     t_embed_model_start = time.time()
-    embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+    embedding_model = _QueryEmbedder(_FASTEMBED_MODEL_NAME)
     t_embed_model_end = time.time()
     if DEBUG_TIMING:
         print(f"[INIT] Embedding model loaded in {t_embed_model_end - t_embed_model_start:.3f}s")
