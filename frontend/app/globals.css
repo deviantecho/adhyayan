@@ -153,6 +153,35 @@
     color: var(--color-text-primary);
   }
 
+  /* KaTeX equation styling - theme integration */
+  .katex {
+    font-size: 1.1em;
+    color: var(--color-text-primary);
+  }
+
+  .katex .mord {
+    color: var(--color-text-primary);
+  }
+
+  .katex-display {
+    margin: 0;
+    text-align: center;
+  }
+
+  .katex-display > .katex {
+    display: inline-block;
+    text-align: initial;
+  }
+
+  /* Ensure KaTeX math renders correctly in dark mode */
+  .katex .base {
+    color: var(--color-text-primary);
+  }
+
+  .katex-wrapper {
+    display: inline-block;
+  }
+
   .source-card {
     margin-top: 1.5rem;
     padding: 1rem;

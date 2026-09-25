@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
+import "katex/dist/katex.min.css";
 
 export const metadata: Metadata = {
   title: "Adhyayan — Class 10 NCERT Study Companion",

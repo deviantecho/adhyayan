@@ -10,6 +10,7 @@
 
 import React from 'react';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { MathRenderer } from './MathRenderer';
 import type { Answer, ContentBlock, MarkdownBlock, EquationBlock, ExampleBlock } from '../lib/types/answer';
 
 // ============================================================================
@@ -65,26 +66,15 @@ function ExampleSection({
 /**
  * Chemical equation or mathematical formula display
  * Phase 3.16O: MUST use approved grey box design
+ * Updated: Now uses MathRenderer for LaTeX support with fallback to ASCII subscripts
  */
 function EquationDisplay({ children }: { children: React.ReactNode }) {
-  // Convert subscript numbers to proper subscript characters
-  const formatEquation = (text: string) => {
-    return text
-      .replace(/(\w)(\d+)/g, (_, letter, num) => {
-        const subscripts: Record<string, string> = {
-          '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄',
-          '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉'
-        };
-        return letter + num.split('').map((d: string) => subscripts[d] || d).join('');
-      });
-  };
-
-  const formattedContent = typeof children === 'string' ? formatEquation(children) : children;
+  const content = typeof children === 'string' ? children : String(children);
 
   return (
     <div className="my-5 mx-auto max-w-fit px-6 py-5 bg-[rgba(255,255,255,0.035)] border border-[rgba(255,255,255,0.06)] rounded-lg">
       <div className="text-[18px] text-[var(--color-text-primary)] leading-relaxed font-serif text-center">
-        {formattedContent}
+        <MathRenderer displayMode={true}>{content}</MathRenderer>
       </div>
     </div>
   );

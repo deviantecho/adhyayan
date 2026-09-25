@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import { MathRenderer } from './MathRenderer';
 
 interface MarkdownRendererProps {
   content: string;
@@ -198,7 +199,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
     return elements;
   };
 
-  const renderInline = (text: string) => {
+  const renderInlineMarkdown = (text: string, keyPrefix: string) => {
     const parts: (string | React.ReactNode)[] = [];
     let remaining = text;
     let key = 0;
@@ -208,7 +209,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
       const boldMatch = remaining.match(/^()(.*?)(\*\*|__)(.+?)\3/);
       if (boldMatch) {
         if (boldMatch[2]) parts.push(boldMatch[2]);
-        parts.push(<strong key={`bold-${key++}`}>{boldMatch[4]}</strong>);
+        parts.push(<strong key={`${keyPrefix}-bold-${key++}`}>{boldMatch[4]}</strong>);
         remaining = remaining.slice(boldMatch[0].length);
         continue;
       }
@@ -218,7 +219,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
       const italicMatch = remaining.match(/^()(.*?)(\*)([^*]+)\*/);
       if (italicMatch) {
         if (italicMatch[2]) parts.push(italicMatch[2]);
-        parts.push(<em key={`italic-${key++}`}>{italicMatch[4]}</em>);
+        parts.push(<em key={`${keyPrefix}-italic-${key++}`}>{italicMatch[4]}</em>);
         remaining = remaining.slice(italicMatch[0].length);
         continue;
       }
@@ -227,7 +228,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
       const italicUnderscoreMatch = remaining.match(/^()(.*?)(_)([^_]+)_/);
       if (italicUnderscoreMatch) {
         if (italicUnderscoreMatch[2]) parts.push(italicUnderscoreMatch[2]);
-        parts.push(<em key={`italic-${key++}`}>{italicUnderscoreMatch[4]}</em>);
+        parts.push(<em key={`${keyPrefix}-italic-${key++}`}>{italicUnderscoreMatch[4]}</em>);
         remaining = remaining.slice(italicUnderscoreMatch[0].length);
         continue;
       }
@@ -238,7 +239,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
         if (codeMatch[1]) parts.push(codeMatch[1]);
         parts.push(
           <code
-            key={`code-${key++}`}
+            key={`${keyPrefix}-code-${key++}`}
             className="px-1.5 py-0.5 bg-[var(--color-surface)] rounded text-sm font-mono"
           >
             {codeMatch[2]}
@@ -248,9 +249,54 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
         continue;
       }
 
-      // No more matches, add remaining text
       parts.push(remaining);
       break;
+    }
+
+    return parts;
+  };
+
+  const renderInline = (text: string) => {
+    // Tokenize code and explicitly delimited math from left to right. Requiring
+    // non-whitespace next to the dollar signs avoids treating currency as math.
+    const tokenPattern = /(`[^`\n]+`)|\$\$(?!\s)([^$\n]*?\S)\$\$|\$(?![$\s])([^$\n]*?\S)\$(?!\$)/g;
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let key = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = tokenPattern.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(...renderInlineMarkdown(text.slice(lastIndex, match.index), `text-${key++}`));
+      }
+
+      if (match[1]) {
+        parts.push(
+          <code
+            key={`code-${key++}`}
+            className="px-1.5 py-0.5 bg-[var(--color-surface)] rounded text-sm font-mono"
+          >
+            {match[1].slice(1, -1)}
+          </code>
+        );
+      } else {
+        const displayMode = match[2] !== undefined;
+        parts.push(
+          <MathRenderer key={`math-${key++}`} displayMode={displayMode} forceLatex={true}>
+            {displayMode ? match[2] : match[3]}
+          </MathRenderer>
+        );
+      }
+
+      lastIndex = tokenPattern.lastIndex;
+    }
+
+    if (lastIndex === 0) {
+      return renderInlineMarkdown(text, 'text');
+    }
+
+    if (lastIndex < text.length) {
+      parts.push(...renderInlineMarkdown(text.slice(lastIndex), `text-${key}`));
     }
 
     return parts;
